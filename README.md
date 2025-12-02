@@ -2,7 +2,7 @@
 
 This repository contains an infrastructure-as-code and CI/CD design for managing:
 
-- An **Okta instance** (groups, apps, and policies), and  
+- An **Okta instance** (groups, apps, and policies)  
 - An **AWS EC2 “server set”** (networking + instances)
 
 using a **GitOps-style** workflow. All changes are made via pull requests, validated in CI, and then applied to environments through an automated pipeline.
@@ -46,201 +46,231 @@ At a high level:
 ![flowchart1](misc/flowchart1.png)
 
 
-**How the AWS instance and network are created**
+## AWS Infrastructure Overview
 
-1. VPC: private network boundary
+### 1. VPC – Private Network Boundary
 
-I start by creating a dedicated VPC:
+- A dedicated **VPC** is created for this stack.
+- No resources use the **default VPC**.
+- This provides:
+  - A clean routing and security boundary
+  - Separation for future expansion (more subnets, services, environments)
 
-This VPC is the isolated network for all resources in this stack; nothing lives in the default VPC. It gives a clean boundary for routing, security groups, and future expansion.
+---
 
-2. Public and private subnets
+### 2. Subnets – Public & Private
 
-Inside the VPC I define two subnets:
+Inside the VPC, two subnets are defined:
 
-PublicSubnet: 10.0.1.0/24
+- **Public subnet**
+  - CIDR: `10.0.1.0/24`
+  - Hosts the internet-facing EC2 instance
 
-PrivateSubnet: 10.0.2.0/24
+- **Private subnet**
+  - CIDR: `10.0.2.0/24`
+  - Reserved for internal services (e.g., databases, app services) if the stack is extended
 
-The public subnet is where I place the internet-facing EC2 instance. The private subnet is reserved for internal services (e.g., databases or app services) if this were extended later.
+---
 
-3. Internet gateway and route table
+### 3. Internet Access – Internet Gateway & Route Table
 
-To allow instances in the public subnet to reach the internet, I:
+To allow the public subnet to reach the internet:
 
-Create an Internet Gateway attached to the VPC.
+- **Internet Gateway (IGW)** is created and attached to the VPC.
+- **Route table** for the VPC includes:
+  - Default route: `0.0.0.0/0` → Internet Gateway
+- The route table is **associated with the public subnet** only.
 
-Create a route table for the VPC with:
+Result:  
+Instances in the public subnet can reach the internet; private subnet stays isolated unless additional routing/NAT is added.
 
-A default route 0.0.0.0/0 that points to the internet gateway.
+---
 
-Associate that route table with the PublicSubnet.
+### 4. Security Group – Web Instance Firewall
 
-4. Security group (firewall) for the web instance
+A dedicated **security group** is defined for the EC2 instance:
 
-Next I define a security group specifically for the EC2 instance:
+- **Attached to:** same VPC
 
-Attached to the same VPC.
+**Ingress rules:**
 
-Ingress rules:
+- HTTP: port `80` from `0.0.0.0/0`
+- HTTPS: port `443` from `0.0.0.0/0`
+- SSH: port `22` from `0.0.0.0/0` (demo-friendly; would be tightened in real use)
 
-HTTP (port 80) from anywhere.
+**Egress rule:**
 
-HTTPS (port 443) from anywhere.
+- All outbound traffic allowed
 
-SSH (port 22) from anywhere (acceptable for a demo, but I’d tighten this in a real environment).
+Notes for real environments:
 
-Egress rule:
+- Restrict SSH to:
+  - A bastion host, or
+  - Known IP ranges, or
+  - Use SSM Session Manager instead of exposing port 22 to the world
 
-All outbound traffic allowed.
+---
 
-This security group acts as the instance’s firewall. For a real production setup, I’d typically restrict SSH to a bastion host, specific IP ranges, or use SSM Session Manager instead of 0.0.0.0/0.
+### 5. EC2 Instance – Web Server
 
-5. EC2 instance (server):
+With networking and security in place, the EC2 instance is defined:
 
-With the network and security group in place, I define the EC2 instance itself:
+- **AMI:** Amazon Linux 2
+- **Instance type:** `t3.micro` (small, cost-effective)
+- **Placement:**
+  - In the public subnet
+  - Associated with the web security group
 
-AMI: Amazon Linux 2
+Terraform handles dependencies so the instance is created only after the VPC, subnets, IGW, route tables, and security groups exist.
 
-Instance type: t3.micro (small, cost-effective demo size).
+In a real environment, additional configuration could be layered via:
 
-Terraform builds this instance inside the VPC with the correct subnet and security group dependencies, so everything comes up in a known, repeatable way. In a real environment, further configuration (hardening, agents, application code) could be layered on using user-data, Ansible, or SSM.
+- User data scripts
+- Ansible
+- SSM (Systems Manager) for config, agents, and application deployment
 
-6. S3 bucket for supporting infra
+---
 
-Finally, I create an S3 bucket to store the Terraform remote state file. It also shows how I'd provision shared infra like state buckets, logs, or config storage.
+### 6. S3 Bucket – Terraform Remote State & Shared Infra
 
-**How the Okta configuration is created**
+An **S3 bucket** is created to store the **Terraform remote state**.
 
-The goal here is to define:
+This also demonstrates how shared infrastructure can be provisioned, such as:
 
-A high-security cohort of users
+- State buckets
+- Logs
+- Configuration storage
 
-A baseline “everyone” cohort
+---
 
-App-specific authentication rules with different MFA/session behavior per cohort
+## Okta Configuration Overview
 
-An OAuth web app that’s bound to those rules
+The Okta side focuses on:
 
-All of this is managed through Terraform and the same CI/CD pipeline.
+- A high-security user cohort
+- A baseline “Everyone” cohort
+- App-specific authentication policies with different MFA/session behavior
+- An OAuth web app bound to these policies
 
-1. Configure the Okta provider
+Everything is managed by Terraform and runs through the same CI/CD pipeline.
 
-Firstly, configure the Terraform Okta provider with variables for the org and credentials:
+---
 
-org_name – the Okta org (e.g., mycompany).
+### 1. Okta Provider Configuration
 
-api_token – API token (injected via Terraform variables / CI secrets).
+Terraform is configured to talk to Okta via the Okta provider:
 
-base_url – Okta base domain (e.g., okta.com, okta-emea.com).
+- **Variables:**
+  - `org_name` – Okta org (e.g., `mycompany`)
+  - `api_token` – API token (injected via variables/CI secrets)
+  - `base_url` – Okta base domain (e.g., `okta.com`, `okta-emea.com`)
 
-2. Reference the built-in “Everyone” group
+This lets Terraform manage Okta resources declaratively in the same workflow as AWS.
 
-Next, I look up the built-in Everyone group using a data source:
+---
 
-Terraform doesn’t create this group; it already exists in most Okta orgs.
+### 2. Baseline Cohort – Built-in “Everyone” Group
 
-I use its name (provided via var.everyone_group_name) to get its ID.
+The built-in **Everyone** group is referenced via a **data source**:
 
-This group becomes the baseline cohort for app access and MFA rules. It lets me say: “Unless you’re in a special high-risk group, you follow the general policy for everyone.”
+- Terraform **does not create** this group; it already exists in the org.
+- The name (from `var.everyone_group_name`) is used to look up its ID.
 
-3. Create a high-security group
+This group acts as the **baseline cohort**:
 
-I then create a dedicated restricted/high-security group, for example:
+- All users fall back to this unless they are in a more restrictive group.
+- Used later as the general policy target for the app’s MFA/session rules.
 
-restricted_users
+---
 
-Description: users who require stricter MFA for a particular app.
+### 3. High-Security Cohort – Restricted Users Group
 
-This group is used to represent elevated-risk users, such as admins or people accessing sensitive internal systems. Anyone added to this group automatically gets a tighter security posture for the app we define later.
+A dedicated high-security group is created, for example:
 
-4. Define an app-specific sign-on policy
+- **Name:** `restricted_users`
+- **Description:** Users who require stricter MFA for a particular app
 
-Instead of relying only on global org policies, I create an app-level sign-on policy:
+Typical examples:
 
-Marked as catch_all = true so it serves as the default policy for that app.
+- Admins
+- Users accessing sensitive internal systems
 
-This policy is scoped to one OAuth app, which gives more control: I can tune MFA and session settings for this specific application without impacting every other app in the org.
+Anyone added to this group automatically receives a **tighter** security posture for the app.
 
-5. Add policy rules for different cohorts
+---
 
-Within that app-specific policy, I define two rules with different priorities:
+### 4. App-Specific Sign-On Policy
 
-Rule 1 – Restricted Users (priority 1)
+Instead of relying only on global org policies, an **app-level sign-on policy** is created:
 
-Target: the restricted_users group only.
+- **Scope:** A single OAuth web application
+- **Flag:** `catch_all = true` so it acts as the default policy for that app
 
-Access: ALLOW with factor_mode = "2FA" (MFA always required).
+Benefits:
 
-Re-authentication settings:
+- Policies can be tuned specifically for this app
+- Changes here don’t affect all other apps in the org
 
-Shorter re-auth interval (e.g., every 2 hours).
+---
 
-Shorter inactivity timeout (e.g., 30 minutes).
+### 5. Policy Rules – Different Behavior per Cohort
 
-Net effect: stricter MFA and shorter sessions for high-risk users.
+Within the app-specific policy, two rules are defined with different priorities.
 
-Rule 2 – Everyone (priority 2)
+#### Rule 1 – Restricted Users (Priority 1)
 
-Target: the built-in Everyone group.
+- **Target:** `restricted_users` group
+- **Access:** `ALLOW`
+- **factor_mode:** `"2FA"` → MFA always required
+- **Re-auth / session settings:**
+  - Short re-auth interval (e.g., every 2 hours)
+  - Short inactivity timeout (e.g., 30 minutes)
 
-Access: also ALLOW with factor_mode = "2FA" (MFA still required).
+**Effect:**  
+High-risk users get stricter MFA and shorter sessions.
 
-Re-authentication settings:
+---
 
-Longer re-auth interval (e.g., every 12 hours).
+#### Rule 2 – Everyone (Priority 2)
 
-Longer inactivity timeout (e.g., 1 hour).
+- **Target:** `Everyone` group
+- **Access:** `ALLOW`
+- **factor_mode:** `"2FA"` → MFA required, but less aggressive
+- **Re-auth / session settings:**
+  - Longer re-auth interval (e.g., every 12 hours)
+  - Longer inactivity timeout (e.g., 1 hour)
 
-Net effect: baseline MFA for all users, but not as aggressively strict as the restricted cohort.
+**Effect:**  
+All other users get a baseline MFA requirement with more relaxed session length.
 
-Because the restricted rule has higher priority, Okta evaluates it first:
+---
 
-If you’re in restricted_users, you get the tighter rule.
+#### Evaluation Order
 
-If not, you fall back to the Everyone rule.
+- Okta evaluates rules by **priority**:
+  - If user is in `restricted_users` → Rule 1 applies (stricter).
+  - Otherwise → Rule 2 applies (baseline).
 
-6. Create an OAuth web application
+---
 
-Finally, I define an OAuth 2.0 web app in Okta:
+### 6. OAuth 2.0 Web Application
 
-The important part is:
+An **OAuth 2.0 web app** is created in Okta and bound to the policy:
 
-authentication_policy = okta_app_signon_policy.app_auth_policy.id
+- Key binding:
 
-This explicitly binds the OAuth app to the app-specific sign-on policy created earlier. In practice, that means:
-
-When users access this app, Okta evaluates:
-
-Rule 1 for restricted users (strict MFA/short sessions).
-
-Rule 2 for everyone else (baseline MFA/longer sessions).
-
-I also set sensible defaults for:
-
-Token endpoint authentication (client_secret_basic).
-
-Issuer mode (ORG_URL).
-
-Username template (using the source login).
-
-In a real environment, this pattern scales out:
-
-More apps can reuse the same module pattern.
-
-More cohorts/groups can be added as needed.
+  ```hcl
+  authentication_policy = okta_app_signon_policy.app_auth_policy.id
 
 
 **Prerequisites**
 ---
-Terraform 1.14+ (tested with 1.14.x)
-AWS Access key ID with permissions to EC2FullAccess/S3FullAccess
+Terraform 1.14+ (tested with 1.14.x)  
+AWS Access key ID with permissions to EC2FullAccess/S3FullAccess  
 Okta API token with permissions to manage apps/policies
 
 **Commands for Testing**
 ```text
-
-
 # Clone or copy these files into a folder
 
 # cd to correct directory (okta or aws)
@@ -260,8 +290,8 @@ terraform plan
 
 # Apply if everything looks good
 terraform apply
+```
 
-
-
-
-
+**resources**
+---
+https://registry.terraform.io/
