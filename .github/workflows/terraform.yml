@@ -34,7 +34,7 @@ jobs:
         run: terraform fmt -check -recursive
 
       - name: Validate Okta config
-        working-directory: OKTA_TF
+        working-directory: OKTA_TERRAFORM
         env:
           OKTA_ORG_NAME: ${{ secrets.OKTA_ORG_NAME }}
           OKTA_API_TOKEN: ${{ secrets.OKTA_API_TOKEN }}
@@ -70,7 +70,7 @@ jobs:
           terraform_version: 1.14.0
 
       - name: Terraform plan - Okta
-        working-directory: OKTA_TF
+        working-directory: OKTA_TERRAFORM
         env:
           OKTA_ORG_NAME: ${{ secrets.OKTA_ORG_NAME }}
           OKTA_API_TOKEN: ${{ secrets.OKTA_API_TOKEN }}
@@ -107,7 +107,7 @@ jobs:
           terraform_version: 1.14.0
 
       - name: Terraform apply - Okta
-        working-directory: OKTA_TF
+        working-directory: OKTA_TERRAFORM
         env:
           OKTA_ORG_NAME: ${{ secrets.OKTA_ORG_NAME }}
           OKTA_API_TOKEN: ${{ secrets.OKTA_API_TOKEN }}

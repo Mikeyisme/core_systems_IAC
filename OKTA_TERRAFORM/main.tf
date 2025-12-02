@@ -40,14 +40,14 @@ resource "okta_app_signon_policy" "app_auth_policy" {
 
 # Rule 1 (priority 1): Restricted users → STRICT MFA (short re-auth)
 resource "okta_app_signon_policy_rule" "restricted_rule" {
-  policy_id       = okta_app_signon_policy.app_auth_policy.id
-  name            = "Restricted Users - Step-up MFA"
-  priority        = 1
-  status          = "ACTIVE"
-  access          = "ALLOW"
+  policy_id = okta_app_signon_policy.app_auth_policy.id
+  name      = "Restricted Users - Step-up MFA"
+  priority  = 1
+  status    = "ACTIVE"
+  access    = "ALLOW"
 
   # MFA always
-  factor_mode     = "2FA"
+  factor_mode = "2FA"
 
   # Scope: only the high-security group
   groups_included = [okta_group.restricted_users.id]
@@ -63,21 +63,21 @@ resource "okta_app_signon_policy_rule" "restricted_rule" {
 
 # Rule 2 (priority 2): Everyone → MFA required (longer re-auth)
 resource "okta_app_signon_policy_rule" "everyone_rule" {
-  policy_id       = okta_app_signon_policy.app_auth_policy.id
-  name            = "Everyone - MFA Required"
-  priority        = 2
-  status          = "ACTIVE"
-  access          = "ALLOW"
+  policy_id = okta_app_signon_policy.app_auth_policy.id
+  name      = "Everyone - MFA Required"
+  priority  = 2
+  status    = "ACTIVE"
+  access    = "ALLOW"
 
   # MFA as the org-wide baseline
-  factor_mode     = "2FA"
+  factor_mode = "2FA"
 
   # Scope: Everyone (acts as default)
   groups_included = [data.okta_group.everyone.id]
 
   # Slightly less strict than restricted users
-  re_authentication_frequency = var.everyone_reauth_frequency     # e.g., PT12H
-  inactivity_period           = var.everyone_inactivity_period    # e.g., PT1H
+  re_authentication_frequency = var.everyone_reauth_frequency  # e.g., PT12H
+  inactivity_period           = var.everyone_inactivity_period # e.g., PT1H
 
   network_connection = "ANYWHERE"
   type               = "ASSURANCE"
@@ -87,13 +87,13 @@ resource "okta_app_signon_policy_rule" "everyone_rule" {
 # OAuth app bound to the policy above
 # ------------------------------------------------------
 resource "okta_app_oauth" "my_web_app" {
-  label                  = var.app_label
-  type                   = "web"
-  grant_types            = ["authorization_code"]
-  redirect_uris          = var.app_redirect_uris
+  label         = var.app_label
+  type          = "web"
+  grant_types   = ["authorization_code"]
+  redirect_uris = var.app_redirect_uris
 
   # Bind app to policy
-  authentication_policy  = okta_app_signon_policy.app_auth_policy.id
+  authentication_policy = okta_app_signon_policy.app_auth_policy.id
 
   token_endpoint_auth_method = "client_secret_basic"
   issuer_mode                = "ORG_URL"
