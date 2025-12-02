@@ -1,0 +1,16 @@
+# ---- Provider creds ----
+okta_org_name  = ""                              # <-- your org subdomain
+okta_api_token = ""                              # <-- your api token
+okta_base_url  = "okta.com"
+
+# ---- Groups ----
+everyone_group_name   = "Everyone"
+restricted_group_name = "Restricted Users"
+
+# ---- App config ----
+app_label         = "Test App For Sessions"
+app_redirect_uris = ["https://my.app/callback"]
+
+# ---- Policy behavior ----
+# restricted_factor_mode = "2FA"
+# default_factor_mode    = "1FA"
