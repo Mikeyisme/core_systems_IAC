@@ -1,0 +1,126 @@
+name: Terraform IaC - Okta + AWS
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'AWS_TF/**'
+      - 'OKTA_TERRAFORM/**'
+  push:
+    branches: [ main ]
+    paths:
+      - 'AWS_TF/**'
+      - 'OKTA_TERRAFORM/**'
+  # allows manual runs from the Actions tab
+  workflow_dispatch: {}
+
+jobs:
+  # ---------------------------------
+  # 1) Lint & validate on every PR
+  # ---------------------------------
+  lint_validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.0
+
+      - name: Terraform fmt (check)
+        run: terraform fmt -check -recursive
+
+      - name: Validate Okta config
+        working-directory: OKTA_TERRAFORM
+        env:
+          OKTA_ORG_NAME: ${{ secrets.OKTA_ORG_NAME }}
+          OKTA_API_TOKEN: ${{ secrets.OKTA_API_TOKEN }}
+          OKTA_BASE_URL: ${{ secrets.OKTA_BASE_URL }}
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+      - name: Validate AWS config
+        working-directory: AWS_TF
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+  # ---------------------------------
+  # 2) Plan on PR (no changes applied)
+  # ---------------------------------
+  plan:
+    runs-on: ubuntu-latest
+    needs: lint_validate
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.0
+
+      - name: Terraform plan - Okta
+        working-directory: OKTA_TERRAFORM
+        env:
+          OKTA_ORG_NAME: ${{ secrets.OKTA_ORG_NAME }}
+          OKTA_API_TOKEN: ${{ secrets.OKTA_API_TOKEN }}
+          OKTA_BASE_URL: ${{ secrets.OKTA_BASE_URL }}
+        run: |
+          terraform init
+          terraform plan -out=plan-okta.out
+
+      - name: Terraform plan - AWS
+        working-directory: AWS_TF
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          terraform init
+          terraform plan -out=plan-aws.out
+
+  # ---------------------------------
+  # 3) Apply on main (merge = desired state)
+  #    Also runs if triggered manually.
+  # ---------------------------------
+  apply:
+    runs-on: ubuntu-latest
+    needs: lint_validate
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.0
+
+      - name: Terraform apply - Okta
+        working-directory: OKTA_TERRAFORM
+        env:
+          OKTA_ORG_NAME: ${{ secrets.OKTA_ORG_NAME }}
+          OKTA_API_TOKEN: ${{ secrets.OKTA_API_TOKEN }}
+          OKTA_BASE_URL: ${{ secrets.OKTA_BASE_URL }}
+        run: |
+          terraform init
+          terraform apply -auto-approve
+
+      - name: Terraform apply - AWS
+        working-directory: AWS_TF
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          terraform init
+          terraform apply -auto-approve
