@@ -36,9 +36,9 @@ jobs:
       - name: Validate Okta config
         working-directory: OKTA_TERRAFORM
         env:
-          OKTA_ORG_NAME: ${{ secrets.OKTA_ORG_NAME }}
-          OKTA_API_TOKEN: ${{ secrets.OKTA_API_TOKEN }}
-          OKTA_BASE_URL: ${{ secrets.OKTA_BASE_URL }}
+          TF_VAR_okta_org_name: ${{ secrets.OKTA_ORG_NAME }}
+          TF_VAR_okta_api_token: ${{ secrets.OKTA_API_TOKEN }}
+          TF_VAR_okta_base_url: ${{ secrets.OKTA_BASE_URL }}
         run: |
           terraform init -backend=false
           terraform validate
@@ -72,9 +72,9 @@ jobs:
       - name: Terraform plan - Okta
         working-directory: OKTA_TERRAFORM
         env:
-          OKTA_ORG_NAME: ${{ secrets.OKTA_ORG_NAME }}
-          OKTA_API_TOKEN: ${{ secrets.OKTA_API_TOKEN }}
-          OKTA_BASE_URL: ${{ secrets.OKTA_BASE_URL }}
+          TF_VAR_okta_org_name: ${{ secrets.OKTA_ORG_NAME }}
+          TF_VAR_okta_api_token: ${{ secrets.OKTA_API_TOKEN }}
+          TF_VAR_okta_base_url: ${{ secrets.OKTA_BASE_URL }}
         run: |
           terraform init
           terraform plan -input=false -out=plan-okta.out
@@ -109,9 +109,9 @@ jobs:
       - name: Terraform apply - Okta
         working-directory: OKTA_TERRAFORM
         env:
-          OKTA_ORG_NAME: ${{ secrets.OKTA_ORG_NAME }}
-          OKTA_API_TOKEN: ${{ secrets.OKTA_API_TOKEN }}
-          OKTA_BASE_URL: ${{ secrets.OKTA_BASE_URL }}
+          TF_VAR_okta_org_name: ${{ secrets.OKTA_ORG_NAME }}
+          TF_VAR_okta_api_token: ${{ secrets.OKTA_API_TOKEN }}
+          TF_VAR_okta_base_url: ${{ secrets.OKTA_BASE_URL }}
         run: |
           terraform init
           terraform apply -input=false -auto-approve
