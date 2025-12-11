@@ -1,0 +1,50 @@
+name: Terraform Destroy - Okta + AWS
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DESTROY to confirm tearing down ALL managed infra"
+        required: true
+        default: "NO"
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'DESTROY'
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.0
+
+      - name: Warn
+        run: |
+          echo "WARNING: Running terraform destroy for OKTA_TF and AWS_TF"
+          echo "This will remove all resources managed by these configs."
+
+      # --- Destroy Okta config ---
+      - name: Terraform destroy - Okta
+        working-directory: OKTA_TF
+        env:
+          TF_VAR_okta_org_name: ${{ secrets.OKTA_ORG_NAME }}
+          TF_VAR_okta_api_token: ${{ secrets.OKTA_API_TOKEN }}
+          TF_VAR_okta_base_url: ${{ secrets.OKTA_BASE_URL }}
+        run: |
+          terraform init
+          terraform destroy -auto-approve
+
+      # --- Destroy AWS config ---
+      - name: Terraform destroy - AWS
+        working-directory: AWS_TF
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          terraform init
+          terraform destroy -auto-approve
