@@ -29,7 +29,7 @@ jobs:
 
       # --- Destroy Okta config ---
       - name: Terraform destroy - Okta
-        working-directory: OKTA_TF
+        working-directory: OKTA_TERRAFORM
         env:
           TF_VAR_okta_org_name: ${{ secrets.OKTA_ORG_NAME }}
           TF_VAR_okta_api_token: ${{ secrets.OKTA_API_TOKEN }}
