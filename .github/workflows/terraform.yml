@@ -77,7 +77,7 @@ jobs:
           OKTA_BASE_URL: ${{ secrets.OKTA_BASE_URL }}
         run: |
           terraform init
-          terraform plan -out=plan-okta.out
+          terraform plan -input=false -out=plan-okta.out
 
       - name: Terraform plan - AWS
         working-directory: AWS_TF
@@ -86,7 +86,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           terraform init
-          terraform plan -out=plan-aws.out
+          terraform plan -input=false -out=plan-aws.out
 
   # ---------------------------------
   # 3) Apply on main (merge = desired state)
@@ -114,7 +114,7 @@ jobs:
           OKTA_BASE_URL: ${{ secrets.OKTA_BASE_URL }}
         run: |
           terraform init
-          terraform apply -auto-approve
+          terraform apply -input=false -auto-approve
 
       - name: Terraform apply - AWS
         working-directory: AWS_TF
@@ -123,4 +123,4 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           terraform init
-          terraform apply -auto-approve
+          terraform apply -input=false -auto-approve
